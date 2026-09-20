@@ -8,8 +8,10 @@ const SpeechRecognition =
   window.webkitSpeechRecognition;
 
 if (!SpeechRecognition) {
+
   statusText.textContent =
     "Speech recognition is not supported in this browser.";
+
 } else {
 
   const recognition = new SpeechRecognition();
@@ -19,35 +21,39 @@ if (!SpeechRecognition) {
   recognition.interimResults = false;
 
   micButton.addEventListener("click", () => {
+
     try {
+
       recognition.start();
 
       statusText.textContent = "Listening...";
       orb.classList.add("listening");
 
     } catch (error) {
+
       console.log(error);
+
     }
+
   });
 
-  recognition.onresult = (event) => {
+  recognition.onresult = async (event) => {
 
     const transcript =
       event.results[0][0].transcript;
 
     addMessage(transcript, "user");
 
-    statusText.textContent = "I heard you.";
+    statusText.textContent = "Thinking...";
 
-    respond(transcript);
+    await askAI(transcript);
+
   };
 
   recognition.onend = () => {
+
     orb.classList.remove("listening");
 
-    if (statusText.textContent === "Listening...") {
-      statusText.textContent = "Tap the microphone and speak";
-    }
   };
 
   recognition.onerror = (event) => {
@@ -58,17 +64,132 @@ if (!SpeechRecognition) {
 
     statusText.textContent =
       "I couldn't hear that. Try again.";
+
   };
+
+}
+
+async function askAI(message) {
+
+  try {
+
+    const response = await fetch("/api/chat", {
+
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json"
+      },
+
+      body: JSON.stringify({
+        message
+      })
+
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Request failed");
+    }
+
+    if (data.action) {
+      executeAction(data.action);
+    }
+
+    addMessage(data.response, "assistant");
+
+    speak(data.response);
+
+    statusText.textContent =
+      "Tap the microphone and speak";
+
+  } catch (error) {
+
+    console.error(error);
+
+    const message =
+      "Sorry, I couldn't connect to the AI assistant.";
+
+    addMessage(message, "assistant");
+
+    speak(message);
+
+    statusText.textContent =
+      "Connection error";
+
+  }
+
+}
+
+function executeAction(action) {
+
+  switch (action) {
+
+    case "open_pricing":
+
+      scrollToSection("pricing");
+
+      break;
+
+    case "open_demo":
+
+      scrollToSection("demo");
+
+      break;
+
+    case "open_features":
+
+      scrollToSection("features");
+
+      break;
+
+    case "go_home":
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+
+      break;
+
+  }
+
+}
+
+function scrollToSection(id) {
+
+  const section =
+    document.getElementById(id);
+
+  if (!section) {
+
+    console.warn(
+      `Section #${id} was not found.`
+    );
+
+    return;
+
+  }
+
+  section.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+
 }
 
 function addMessage(text, type) {
 
-  const message = document.createElement("div");
+  const message =
+    document.createElement("div");
 
   message.className =
-    `message ${type === "user"
-      ? "user-message"
-      : "assistant-message"}`;
+    `message ${
+      type === "user"
+        ? "user-message"
+        : "assistant-message"
+    }`;
 
   message.textContent = text;
 
@@ -76,47 +197,7 @@ function addMessage(text, type) {
 
   conversation.scrollTop =
     conversation.scrollHeight;
-}
 
-function respond(text) {
-
-  const lower = text.toLowerCase();
-
-  let response;
-
-  if (
-    lower.includes("what is menubox") ||
-    lower.includes("what does menubox do")
-  ) {
-
-    response =
-      "MenuBoxGh helps restaurants create digital menus and receive customer orders.";
-
-  } else if (
-    lower.includes("hello") ||
-    lower.includes("hi")
-  ) {
-
-    response =
-      "Hello. What would you like to know about MenuBoxGh?";
-
-  } else if (
-    lower.includes("pricing") ||
-    lower.includes("price")
-  ) {
-
-    response =
-      "MenuBoxGh has Standard and Premium plans.";
-
-  } else {
-
-    response =
-      "I heard you say: " + text;
-  }
-
-  addMessage(response, "assistant");
-
-  speak(response);
 }
 
 function speak(text) {
@@ -131,4 +212,5 @@ function speak(text) {
   speech.pitch = 1;
 
   window.speechSynthesis.speak(speech);
+
 }
